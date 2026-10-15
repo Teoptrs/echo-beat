@@ -5,7 +5,8 @@ const KEY = 'echobeat.save.v1';
 const DEFAULTS = {
   coins: 0,
   progress: {}, // levelId -> { stars, best } once cleared
-  clears: 0, // level clears, used to pace interstitials
+  clears: 0, // level clears
+  adCountdown: null, // counted clears left before the next interstitial
   deaths: 0,
   ink: 'standard',
   owned: ['standard'],

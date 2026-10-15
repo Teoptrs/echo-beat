@@ -12,10 +12,11 @@ export const GRACE = 0.13;
 const LEAD = 0.25; // seconds of silence before the first count-in click
 
 export class Play {
-  constructor(level, { solution = null, hint = false, onEvent = () => {} } = {}) {
+  constructor(level, { solution = null, hint = false, tempo = 1, onEvent = () => {} } = {}) {
     this.level = level;
     this.sim = new Sim(level);
-    this.spb = 60 / level.bpm;
+    this.tempo = tempo;
+    this.spb = 60 / (level.bpm * tempo);
     this.solution = solution;
     this.emit = onEvent;
     this.mode = 'ready';
@@ -182,6 +183,18 @@ export class Play {
   resume() {
     if (this.mode !== 'paused') return;
     this.begin(this.nextTick);
+  }
+
+  // The slow tempo power-up. Only between count-ins: begin() re-times the beats.
+  setTempo(f) {
+    if (this.mode !== 'paused' && this.mode !== 'ready') return false;
+    this.tempo = f;
+    this.spb = 60 / (this.level.bpm * f);
+    return true;
+  }
+
+  get bpm() {
+    return Math.round(this.level.bpm * this.tempo);
   }
 
   get canContinue() {

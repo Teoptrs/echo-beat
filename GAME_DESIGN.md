@@ -51,8 +51,9 @@ Generic AI-built apps share a recognisable look: Inter or Roboto, dark mode with
 - Double the daily reward.
 - 25 free coins, five times a day.
 - Unlock the Newsprint ink with three ads.
+- **Slow tempo power-up:** from the pause menu or the death screen, play the track at 75% of its tempo until you leave it. Ads are the only way to get it; it can't be bought with coins or money. Stars still count beats, so a slow clear can still earn three.
 
-**Interstitials:** only when you leave a results screen after clearing a track (never after a death, never mid-track), not in the first 6 clears, then at most every 3rd clear and 90 seconds apart. Removed by the Remove Ads purchase.
+**Interstitials:** only when you leave a results screen after clearing a track (never after a death, never mid-track). Side A is ad-free. From side B on, one plays after every 2 or 3 clears (picked at random each time), never twice within 45 seconds. Removed by the Remove Ads purchase.
 
 **In-app purchases (Google Play Billing):**
 

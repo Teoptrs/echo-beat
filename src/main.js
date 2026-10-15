@@ -29,6 +29,7 @@ const ICON = {
   pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="i-fill-line" d="M5 3h5v18H5zm9 0h5v18h-5z"/></svg>',
   ad: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect class="i-stroke i-nofill" stroke-width="2.4" x="2" y="4" width="20" height="14"/><path class="i-fill-line" d="M10 7.5v7l6-3.5z"/><path class="i-stroke i-nofill" stroke-width="2.4" d="M8 21h8"/></svg>',
   route: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="i-stroke i-nofill" stroke-width="2.6" stroke-dasharray="1 4" stroke-linecap="round" d="M4 20c2-6 8-4 9-9s5-6 7-7"/><circle class="i-fill-note i-stroke" stroke-width="2" cx="20" cy="4" r="3"/></svg>',
+  slow: '<svg viewBox="0 0 20 20" aria-hidden="true"><path class="i-fill-note" d="M6.6 16.6c.9-1.9 2.2-2.6 3.4-2.6s2.5.7 3.4 2.6z"/><path class="i-stroke i-nofill" stroke-width="2" d="M3.5 1.8h13M3.5 18.2h13M5.4 1.8c0 5.3 4.6 5.6 4.6 8.2s-4.6 2.9-4.6 8.2M14.6 1.8c0 5.3-4.6 5.6-4.6 8.2s4.6 2.9 4.6 8.2"/></svg>',
   note: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle class="i-fill-note" cx="10" cy="10" r="9.5"/><ellipse style="fill:var(--on-note)" cx="7.7" cy="13.3" rx="2.6" ry="1.9" transform="rotate(-22 7.7 13.3)"/><path class="i-nofill" style="stroke:var(--on-note)" stroke-width="1.6" d="M10 13V4.5c.5 2.8 4.5 2.4 3.6 6"/></svg>',
 };
 
@@ -47,6 +48,7 @@ let history = [];
 let play = null;
 let levelIdx = 0;
 let tutorial = null;
+let slowFor = null; // id of the track the slow tempo power-up is on
 let menuSong = null;
 let dirty = true;
 let ink = inkById(save.ink);
@@ -124,6 +126,7 @@ function back() {
 }
 
 function quitToTracks() {
+  slowFor = null;
   closeSheet();
   audio.stopSong(0.2);
   history = ['title'];
@@ -308,7 +311,8 @@ function launch(i, hint, wait = false) {
   stopMenuMusic();
   levelIdx = i;
   const level = LEVELS[i];
-  play = new Play(level, { solution: SOLUTIONS[level.id], hint, onEvent });
+  if (slowFor !== level.id) slowFor = null;
+  play = new Play(level, { solution: SOLUTIONS[level.id], hint, tempo: slowFor ? ADS.slowTempo : 1, onEvent });
   tutorial = null;
   if (level.tutorial === 'swipe') tutorial = { kind: 'swipe', moves: 0 };
   if (level.tutorial === 'echo' && !save.seen.includes('tut:echo')) tutorial = { kind: 'echo', shown: false };
@@ -342,6 +346,21 @@ function updateHud() {
   notes.hidden = !s.lv.notes.length;
   notes.innerHTML = `${ICON.note}<span>${s.collected.size}/${s.lv.notes.length}</span>`;
   $('#hud-beats').innerHTML = `<span>${s.beatsUsed}</span><small>${s.beatsUsed === 1 ? 'beat' : 'beats'} · par ${par}</small>`;
+  const slow = $('#hud-slow');
+  slow.hidden = play.tempo === 1;
+  slow.innerHTML = `${ICON.slow}<small>${play.bpm} bpm</small>`;
+  slow.setAttribute('aria-label', `Slow tempo, ${play.bpm} beats per minute`);
+}
+
+// Slow tempo power-up: watch a rewarded ad, and the track plays at 75% speed
+// until you leave it. Never sold for coins or money.
+async function unlockSlowTempo() {
+  if (!(await showRewarded())) {
+    toast('No reward this time. The ad was closed early.');
+    return false;
+  }
+  slowFor = LEVELS[levelIdx].id;
+  return true;
 }
 
 function safeArea() {
@@ -456,10 +475,12 @@ function pauseGame() {
 
 function openPause() {
   const l = play.level;
+  const canSlow = play.tempo === 1 && rewardedAvailable();
   const panel = openSheet(
     `<p class="eyebrow">${l.id} · ${l.name}</p><h2>Paused</h2>
     <div class="actions">
       <button class="btn primary big" data-act="resume"><small>Four-beat count-in</small><span>Resume</span></button>
+      ${canSlow ? `<button class="btn inline" data-act="slow">${ICON.ad}<span>Slow down to ${Math.round(l.bpm * ADS.slowTempo)} bpm</span></button>` : ''}
       <div class="row"><button class="btn" data-act="restart">Restart</button>
       <button class="btn inline" data-act="hint">${ICON.route}<span>${play.hint ? 'Hint is on' : 'Hint'}</span></button></div>
       <div class="row"><button class="btn" data-act="tracks">Tracklist</button>
@@ -467,9 +488,16 @@ function openPause() {
     </div>`,
     { onBack: resumeGame },
   );
-  panel.onclick = (e) => {
+  panel.onclick = async (e) => {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'resume') resumeGame();
+    if (act === 'slow') {
+      const p = play;
+      if (!(await unlockSlowTempo()) || play !== p || !p.setTempo(ADS.slowTempo)) return;
+      updateHud();
+      layoutBoard();
+      resumeGame();
+    }
     if (act === 'restart') startLevel(levelIdx, { hint: !!play.hint });
     if (act === 'hint') requestHint(openPause);
     if (act === 'tracks') quitToTracks();
@@ -491,12 +519,14 @@ function showDeath(p) {
   if (play !== p || screen !== 'play' || p.mode !== 'dead') return;
   const reason = { echo: 'You walked into your own echo.', metronome: 'A metronome flattened you.', spike: 'You were standing on the spikes when they came up.' }[p.death.reason];
   const canRewind = p.canContinue && rewardedAvailable();
+  const canSlow = p.tempo === 1 && rewardedAvailable();
   const panel = openSheet(
     `<span class="stamp bad">Misprint</span>
     <p class="lead">${reason}</p>
     <div class="actions">
       <button class="btn primary big" data-act="retry"><small>From the top</small><span>Retry</span></button>
       ${canRewind ? `<button class="btn inline" data-act="rewind">${ICON.ad}<span>Rewind to your last note</span></button>` : ''}
+      ${canSlow ? `<button class="btn inline" data-act="slow">${ICON.ad}<span>Retry slower, at ${Math.round(p.level.bpm * ADS.slowTempo)} bpm</span></button>` : ''}
       <div class="row"><button class="btn inline" data-act="hint">${ICON.route}<span>Hint</span></button>
       <button class="btn" data-act="tracks">Tracklist</button></div>
     </div>`,
@@ -507,6 +537,7 @@ function showDeath(p) {
     if (act === 'retry') startLevel(levelIdx, { hint: !!p.hint && !p.hint.lost });
     if (act === 'tracks') quitToTracks();
     if (act === 'hint') requestHint(() => showDeath(p));
+    if (act === 'slow' && (await unlockSlowTempo()) && play === p) startLevel(levelIdx, { hint: !!p.hint && !p.hint.lost });
     if (act === 'rewind') {
       const ok = await showRewarded();
       if (!ok || play !== p) return toast('No reward this time. The ad was closed early.');
@@ -555,7 +586,7 @@ function showResults(p, beats) {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (!act) return;
     closeSheet();
-    await maybeInterstitial();
+    await maybeInterstitial(level.id);
     if (act === 'next' && !last) startLevel(levelIdx + 1);
     else if (act === 'replay') startLevel(levelIdx);
     else quitToTracks();
