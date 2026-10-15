@@ -20,7 +20,7 @@ export const ADS = {
   slowTempo: 0.75, // slow tempo power-up: the track plays at 75% speed; rewarded ad only
   freeCoinsPerAd: 25,
   freeCoinsAdsPerDay: 5,
-  hintCost: 40, // coins, or one rewarded ad
+  freeHintEveryMs: 60 * 60 * 1000, // one free hint an hour; extra ones cost a rewarded ad
 };
 
 // Coins for clearing a level: a bonus the first time, plus 5 per new star.
@@ -30,7 +30,7 @@ export const REWARDS = { firstClear: 10, perStar: 5 };
 export const PRODUCTS = [
   { id: 'remove_ads', type: 'NON_CONSUMABLE', title: 'Remove Ads', desc: 'No more interstitial ads. Forever.', fallbackPrice: '€2.99' },
   { id: 'premium_inks', type: 'NON_CONSUMABLE', title: 'Premium Inks', desc: 'Night Print, Kraft and Gold Foil.', fallbackPrice: '€1.99' },
-  { id: 'coins_500', type: 'CONSUMABLE', title: '500 Coins', desc: 'Enough for a dozen hints.', coins: 500, fallbackPrice: '€0.99' },
+  { id: 'coins_500', type: 'CONSUMABLE', title: '500 Coins', desc: 'Enough for the Teal or Grape ink.', coins: 500, fallbackPrice: '€0.99' },
   { id: 'coins_2000', type: 'CONSUMABLE', title: '2,000 Coins', desc: 'Four times the coins.', coins: 2000, fallbackPrice: '€2.99' },
 ];
 

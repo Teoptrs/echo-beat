@@ -15,6 +15,7 @@ const DEFAULTS = {
   premiumInks: false,
   grantedTx: [], // consumable purchase transaction ids already credited
   hints: [], // level ids whose hint has been unlocked
+  freeHintAt: 0, // when the last free hint was used (ms)
   seen: [], // intro cards and tutorials already shown
   music: 0.8,
   sfx: 0.9,

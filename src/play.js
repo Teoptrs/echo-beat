@@ -6,6 +6,7 @@
 // the board is judged. A swipe inside that window still counts for the beat
 // that just ticked; any other swipe waits for the next beat (latest one wins).
 import { Sim, COUNT_IN, replay } from './sim.js';
+import { cloneSim } from './solver.js';
 import { clock } from './music.js';
 
 export const GRACE = 0.13;
@@ -35,27 +36,36 @@ export class Play {
     this.noteBeat = null;
     this.pausedAt = 0;
     this.endedAt = 0;
-    this.hint = hint && solution ? this.buildHint() : null;
+    this.hint = hint && solution ? this.buildHint(solution.route) : null;
   }
 
-  buildHint() {
-    // expected position after every beat of the stored route
+  // A hint is a route (one action per beat from beat `from`, -1 = stay) plus
+  // where you should be after each of those beats. Starting from `start` (a Sim
+  // between beats) or, by default, from the top of the track.
+  buildHint(route, from = COUNT_IN, start = null) {
+    const sim = start ? cloneSim(start) : replay(this.level, []).sim;
     const expected = [];
-    const { sim } = replay(this.level, []);
-    let n = COUNT_IN;
-    for (const a of this.solution.route) {
+    let n = from;
+    for (const a of route) {
       if (a >= 0) sim.move(n, a);
       sim.close(n);
       expected.push(sim.player);
       n++;
     }
-    return { route: this.solution.route, expected, lost: false };
+    return { route, expected, from, lost: false, plotting: false };
+  }
+
+  // A new route from where you are now (null when there is no way through).
+  setHintRoute(route) {
+    if (!this.hint) return;
+    if (route) this.hint = this.buildHint(route, this.sim.lastClosed + 1, this.sim);
+    else Object.assign(this.hint, { lost: true, plotting: false });
   }
 
   // Expected action for beat n while following the hint (-1 = stay), or null.
   hintAction(n) {
-    if (!this.hint || this.hint.lost) return null;
-    const a = this.hint.route[n - COUNT_IN];
+    if (!this.hint || this.hint.lost || this.hint.plotting) return null;
+    const a = this.hint.route[n - this.hint.from];
     return a === undefined ? null : a;
   }
 
@@ -143,14 +153,15 @@ export class Play {
       this.noteBeat = null;
       this.checkpoint = { snap: this.sim.snapshot(), used: false, notes: this.sim.collected.size };
     }
-    if (this.hint && !this.hint.lost) {
-      const want = this.hint.expected[n - COUNT_IN];
+    if (res.type === 'won') return this.win();
+    // stepped off the hint route (or missed a beat): the game plots a new one
+    if (this.hint && !this.hint.lost && !this.hint.plotting) {
+      const want = this.hint.expected[n - this.hint.from];
       if (want !== undefined && want !== this.sim.player) {
-        this.hint.lost = true;
-        this.emit('hintLost');
+        this.hint.plotting = true;
+        this.emit('offRoute', { n });
       }
     }
-    if (res.type === 'won') return this.win();
     this.emit('closed', { n });
   }
 
@@ -201,8 +212,9 @@ export class Play {
     return this.mode === 'dead' && !!this.checkpoint && !this.checkpoint.used;
   }
 
-  // Back to the moment you took your last note, then a fresh count-in.
-  continueFromCheckpoint() {
+  // Back to the moment you took your last note, then a fresh count-in (or stay
+  // paused with start: false, to resume later).
+  continueFromCheckpoint({ start = true } = {}) {
     if (!this.canContinue) return false;
     this.checkpoint.used = true;
     this.sim.restore(this.checkpoint.snap);
@@ -213,7 +225,8 @@ export class Play {
     this.blots = [];
     this.fx = [];
     this.mode = 'paused';
-    this.begin(N);
+    this.pausedAt = clock();
+    if (start) this.begin(N);
     return true;
   }
 
