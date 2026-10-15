@@ -5,13 +5,13 @@ import { Capacitor } from '@capacitor/core';
 import { ADS } from './config.js';
 import { save, persist } from './save.js';
 import { mockAd } from './mock.js';
+import { pace } from './pacing.js';
 
 const native = Capacitor.isNativePlatform();
 let AdMob, RewardEv, InterEv;
 let rewardedReady = false;
 let interstitialReady = false;
-let lastInterstitialAt = 0;
-let clearsSinceInterstitial = 0;
+let lastInterstitialAt = -Infinity;
 let canRequestAds = !native;
 export let privacyOptionsRequired = false;
 
@@ -95,19 +95,19 @@ export async function showRewarded() {
 }
 
 // Called when leaving a cleared level; shows an interstitial only when pacing allows.
-export async function maybeInterstitial() {
-  clearsSinceInterstitial++;
+export async function maybeInterstitial(levelId) {
   if (save.adsRemoved) return;
-  if (save.clears <= ADS.interstitialGraceRuns) return;
-  if (clearsSinceInterstitial < ADS.interstitialEvery) return;
-  if (Date.now() - lastInterstitialAt < ADS.interstitialMinGapMs) return;
-  clearsSinceInterstitial = 0;
+  const r = pace({ levelId, countdown: save.adCountdown, now: Date.now(), lastAt: lastInterstitialAt, rules: ADS.interstitial });
+  // not loaded yet: keep it due, so it shows after the next clear instead
+  const loading = native && (!AdMob || !interstitialReady);
+  save.adCountdown = r.show && loading ? 0 : r.countdown;
+  persist();
+  if (!r.show || loading) return;
   lastInterstitialAt = Date.now();
   if (!native) {
     await mockAd('interstitial');
     return;
   }
-  if (!AdMob || !interstitialReady) return;
   await new Promise((resolve) => {
     const handles = [];
     const done = () => {

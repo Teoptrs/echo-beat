@@ -13,12 +13,11 @@ export const ADS = {
   rewarded: env.VITE_ADMOB_REWARDED_ID || TEST_UNITS.rewarded,
   interstitial: env.VITE_ADMOB_INTERSTITIAL_ID || TEST_UNITS.interstitial,
   testing: !env.VITE_ADMOB_REWARDED_ID,
-  // Interstitial pacing: only between levels (never after a death), never
-  // during a player's first clears, then at most every few clears and never
-  // more often than the minimum gap.
-  interstitialGraceRuns: 6,
-  interstitialEvery: 3,
-  interstitialMinGapMs: 90_000,
+  // Interstitial pacing: only when leaving a cleared level (never after a
+  // death or mid-track), never on side A, then after every 2 or 3 clears
+  // (picked at random each time) and never twice within the minimum gap.
+  interstitial: { freeSides: ['A'], every: [2, 3], minGapMs: 45_000 },
+  slowTempo: 0.75, // slow tempo power-up: the track plays at 75% speed; rewarded ad only
   freeCoinsPerAd: 25,
   freeCoinsAdsPerDay: 5,
   hintCost: 40, // coins, or one rewarded ad
