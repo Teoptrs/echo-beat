@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#e9e8e1" />
+    <meta name="description" content="Echo Beat: a rhythm puzzle on a hex grid where every route you walk comes back as an echo." />
+    <title>Echo Beat</title>
+  </head>
+  <body>
+    <canvas id="stage" aria-hidden="true"></canvas>
+    <div id="safe-probe" aria-hidden="true"></div>
+
+    <!-- Title: a gig poster -->
+    <section id="title" class="screen" data-screen>
+      <header class="bar">
+        <button class="coins" data-go="shop" aria-label="Coins, open the ink room"><span data-icon="coin"></span><span data-coins>0</span></button>
+        <button class="icon-btn" data-go="settings" aria-label="Settings"><span data-icon="gear"></span></button>
+      </header>
+      <div class="poster">
+        <p class="kicker">A rhythm puzzle in three sides</p>
+        <h1 class="logo" aria-label="Echo Beat">
+          <span class="plate plate-echo" aria-hidden="true">Echo<br />Beat</span>
+          <span class="plate plate-you" aria-hidden="true">Echo<br />Beat</span>
+        </h1>
+        <p class="strap">Move on the beat. Every route you walk comes back to haunt you.</p>
+      </div>
+      <button id="daily-btn" class="daily-stamp" hidden><span>Daily</span><b id="daily-amount">+20</b></button>
+      <div class="title-actions">
+        <button id="play-btn" class="btn primary big"><small id="play-sub">Side A · A1 First Steps</small><span>Play</span></button>
+        <div class="btn-row">
+          <button class="btn" data-go="tracks">Tracklist</button>
+          <button class="btn" data-go="shop">Ink room</button>
+        </div>
+        <p class="colophon">Printed in <span id="ink-name">Standard</span> inks</p>
+      </div>
+    </section>
+
+    <!-- Tracklist: the back of the sleeve -->
+    <section id="tracks" class="screen" data-screen hidden>
+      <header class="bar">
+        <button class="icon-btn" data-back aria-label="Back"><span data-icon="back"></span></button>
+        <h2 class="bar-title">Tracklist</h2>
+        <button class="coins" data-go="shop" aria-label="Coins, open the ink room"><span data-icon="coin"></span><span data-coins>0</span></button>
+      </header>
+      <div class="scroll">
+        <nav class="sides" id="sides" role="tablist" aria-label="Sides"></nav>
+        <div class="side-head">
+          <h3 id="side-name">Side A</h3>
+          <p id="side-meta"></p>
+        </div>
+        <ol class="tracklist" id="tracklist"></ol>
+        <p class="side-foot" id="side-foot"></p>
+      </div>
+    </section>
+
+    <!-- In play: everything else is drawn on the canvas -->
+    <section id="play" class="screen hud" data-screen hidden>
+      <header class="hud-bar">
+        <div class="hud-title">
+          <span class="hud-id" id="hud-id">A1</span>
+          <span class="hud-name" id="hud-name">First Steps</span>
+        </div>
+        <button class="icon-btn" id="pause-btn" aria-label="Pause"><span data-icon="pause"></span></button>
+      </header>
+      <div class="hud-stats">
+        <span class="stat" id="hud-notes"></span>
+        <span class="stat" id="hud-beats"></span>
+      </div>
+      <p class="tip" id="hud-tip"><span></span></p>
+    </section>
+
+    <!-- Shop -->
+    <section id="shop" class="screen" data-screen hidden>
+      <header class="bar">
+        <button class="icon-btn" data-back aria-label="Back"><span data-icon="back"></span></button>
+        <h2 class="bar-title">Ink room</h2>
+        <span class="coins"><span data-icon="coin"></span><span data-coins>0</span></span>
+      </header>
+      <div class="scroll" id="shop-body"></div>
+    </section>
+
+    <!-- Settings -->
+    <section id="settings" class="screen" data-screen hidden>
+      <header class="bar">
+        <button class="icon-btn" data-back aria-label="Back"><span data-icon="back"></span></button>
+        <h2 class="bar-title">Settings</h2>
+        <span></span>
+      </header>
+      <div class="scroll">
+        <label class="field"><span>Music</span><input type="range" id="set-music" min="0" max="1" step="0.05" /></label>
+        <label class="field"><span>Sound effects</span><input type="range" id="set-sfx" min="0" max="1" step="0.05" /></label>
+        <label class="field"><span>Vibration</span><input type="checkbox" id="set-haptics" /></label>
+        <div class="field stacked">
+          <span>Audio delay</span>
+          <div class="stepper">
+            <button class="icon-btn" id="off-minus" aria-label="Less delay">−</button>
+            <output id="off-val">0 ms</output>
+            <button class="icon-btn" id="off-plus" aria-label="More delay">+</button>
+          </div>
+          <p class="help">Phones and Bluetooth headphones play sound a little late. If the beat and the board feel out of step, tap along to measure it.</p>
+          <button class="btn small" id="calibrate">Tap along to measure</button>
+        </div>
+        <div class="field stacked">
+          <span>Help</span>
+          <button class="btn small" id="replay-tutorial">Show the tutorial cards again</button>
+        </div>
+        <div class="field stacked">
+          <span>Purchases and privacy</span>
+          <div class="link-row">
+            <button class="btn small" id="restore-btn">Restore purchases</button>
+            <button class="btn small" id="privacy-options" hidden>Ad privacy choices</button>
+            <a class="btn small" id="privacy-link" target="_blank" rel="noopener">Privacy policy</a>
+          </div>
+        </div>
+        <p class="colophon" id="version"></p>
+      </div>
+    </section>
+
+    <div id="sheet" class="sheet" hidden><div class="sheet-panel" role="dialog" aria-modal="true"></div></div>
+    <div id="toast" class="toast" role="status" hidden></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

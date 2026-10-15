@@ -1,0 +1,30 @@
+{
+  "name": "echo-beat",
+  "version": "1.0.0",
+  "description": "Echo Beat - a rhythm puzzle on a hex grid where every route you walk comes back as an echo. For Android.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test tests/*.test.js",
+    "sync": "vite build && cap sync android",
+    "solve": "node tools/solve.mjs"
+  },
+  "dependencies": {
+    "@capacitor-community/admob": "^8.2.1",
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/haptics": "^8.0.2",
+    "@fontsource-variable/archivo": "^5.3.0",
+    "@fontsource/dela-gothic-one": "^5.3.0",
+    "cordova-plugin-purchase": "^13.19.1"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.3",
+    "vite": "^7.3.7"
+  },
+  "type": "module",
+  "private": true
+}

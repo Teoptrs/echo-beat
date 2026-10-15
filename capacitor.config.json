@@ -1,0 +1,8 @@
+{
+  "appId": "com.teoptrs.echobeat",
+  "appName": "Echo Beat",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#e9e8e1"
+  }
+}

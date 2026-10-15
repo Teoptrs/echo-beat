@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Echo Beat</string>
+    <string name="title_activity_main">Echo Beat</string>
+    <string name="package_name">com.teoptrs.echobeat</string>
+    <string name="custom_url_scheme">com.teoptrs.echobeat</string>
+</resources>

@@ -1,0 +1,153 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>art</title>
+    <style>
+      html, body { margin: 0; background: transparent; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <script type="module">
+      // Icon, splash and store art, drawn with the game's own renderer. Used by tools/make-art.cjs.
+      import '@fontsource/dela-gothic-one/latin-400.css';
+      import '@fontsource-variable/archivo/wdth.css';
+      import { Renderer, DISPLAY_FONT, TEXT_FONT } from '../src/render.js';
+      import { inkById, rgba } from '../src/inks.js';
+      import { parseLevel } from '../src/sim.js';
+
+      const q = new URLSearchParams(location.search);
+      const kind = q.get('kind');
+      const W = +q.get('w'), H = +q.get('h');
+      const ink = inkById(q.get('ink') || 'standard');
+      const canvas = document.getElementById('c');
+      canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
+      const r = new Renderer(canvas);
+      r.resize(W, H);
+      r.setInk(ink);
+      const ctx = r.ctx;
+      const SQ3 = Math.sqrt(3);
+
+      function logo(x, y, size, lines = ['Echo', 'Beat'], reg = [0.06, 0.045]) {
+        ctx.save();
+        ctx.globalCompositeOperation = ink.blend;
+        ctx.font = `${size}px ${DISPLAY_FONT}`;
+        ctx.textBaseline = 'alphabetic';
+        for (const [col, dx, dy] of [[ink.echo, size * reg[0], size * reg[1]], [ink.you, 0, 0]]) {
+          ctx.fillStyle = col;
+          lines.forEach((t, i) => ctx.fillText(t.toUpperCase(), x + dx, y + dy + i * size * 0.86));
+        }
+        ctx.restore();
+      }
+
+      // You and your echo on a yellow hex
+      function emblem(cx, cy, s, { hexFill = true } = {}) {
+        r.size = s;
+        if (hexFill) {
+          r.inked('note', (col) => {
+            r.hex(cx, cy, s * 0.95);
+            ctx.fillStyle = r.noteDots;
+            ctx.save();
+            ctx.scale(s / 90, s / 90);
+            ctx.fill();
+            ctx.restore();
+          });
+          r.inked('line', (col) => {
+            r.hex(cx, cy, s * 0.95);
+            ctx.strokeStyle = col;
+            ctx.lineWidth = s * 0.05;
+            ctx.lineJoin = 'miter';
+            ctx.stroke();
+            ctx.lineWidth = s * 0.02;
+            ctx.setLineDash([s * 0.035, s * 0.05]);
+            r.hex(cx, cy, s * 0.78);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          });
+        }
+        r.ghost(cx - s * 0.2, cy - s * 0.12, s * 0.4, { wave: 1 });
+        r.body(cx + s * 0.16, cy + s * 0.14, s * 0.4, 1.04, 0.96);
+        r.eyes(cx + s * 0.16, cy + s * 0.14, s * 0.4, 1);
+      }
+
+      function board(map, x0, y0, s, extras) {
+        const lv = parseLevel({ map, metronomes: extras.metronomes || [] });
+        r.size = s;
+        const at = (k) => {
+          const c = lv.cells.get(k);
+          return [x0 + s * 1.5 * c.q, y0 + s * SQ3 * (c.r + c.q / 2)];
+        };
+        for (const c of lv.cells.values()) {
+          const [x, y] = at(c.k);
+          r.drawCell(c, x, y, { spike: extras.spikes?.[c.t] || 'down', exitOpen: extras.exitOpen, notesLeft: lv.notes.length, dotsIdx: (c.q + c.r) % 3 === 0 ? 2 : 0, pressed: extras.pressed, beat: 1 });
+        }
+        return at;
+      }
+
+      await document.fonts.load(`80px "Dela Gothic One"`);
+      await document.fonts.load(`700 20px "Archivo Variable"`);
+      r.register(0, 0);
+
+      if (kind === 'icon' || kind === 'icon-fg' || kind === 'icon-bg') {
+        if (kind === 'icon-fg') ctx.clearRect(0, 0, W, H);
+        else r.beginFrame();
+        ctx.globalCompositeOperation = ink.blend;
+        if (kind === 'icon-bg') {
+          ctx.fillStyle = r.dots[1];
+          ctx.fillRect(0, 0, W, H);
+        } else {
+          const s = kind === 'icon-fg' ? W * 0.27 : W * 0.4;
+          if (kind === 'icon-fg') ctx.globalCompositeOperation = 'source-over';
+          emblem(W / 2, H / 2, s);
+        }
+        if (kind !== 'icon-fg') r.endFrame();
+      }
+
+      if (kind === 'splash') {
+        r.beginFrame();
+        ctx.globalCompositeOperation = ink.blend;
+        emblem(W / 2, H / 2 - H * 0.03, W * 0.1);
+        ctx.font = `${W * 0.028}px ${DISPLAY_FONT}`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = ink.line;
+        ctx.fillText('ECHO BEAT', W / 2, H / 2 + W * 0.12);
+        r.endFrame();
+      }
+
+      if (kind === 'feature') {
+        r.beginFrame();
+        ctx.globalCompositeOperation = ink.blend;
+        const at = board([' ..E.. ', '.^v^v^.', '...o...', '.......', '..S....'], W * 0.56, H * 0.17, 52, { exitOpen: false, spikes: { '^': 'up', v: 'down' } });
+        const [gx, gy] = at('3,1');
+        r.ghost(gx, gy, 52 * 0.36, { wave: 1 });
+        r.inked('echo', (col) => {
+          ctx.strokeStyle = rgba(col, 0.6);
+          ctx.lineWidth = 6;
+          ctx.lineCap = 'round';
+          ctx.setLineDash([0.1, 16]);
+          ctx.beginPath();
+          const a = at('2,3'), b = at('3,2'), c = at('3,1');
+          ctx.moveTo(...a);
+          ctx.lineTo(...b);
+          ctx.lineTo(...c);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        });
+        const [px, py] = at('4,2');
+        r.body(px, py, 52 * 0.4, 1, 1);
+        r.eyes(px, py, 52 * 0.4, 0);
+        logo(48, 190, 128);
+        ctx.font = `600 27px ${TEXT_FONT}`;
+        ctx.fillStyle = ink.line;
+        ctx.fillText('Move on the beat.', 52, 368);
+        ctx.fillText('Every route you walk comes back.', 52, 404);
+        r.endFrame();
+      }
+
+      document.title = 'done';
+    </script>
+  </body>
+</html>
