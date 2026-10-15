@@ -90,4 +90,5 @@ These can only be created after a build with billing has been uploaded (step 6).
 ## Trying the game right now
 
 - **On your phone:** download `echo-beat-debug-apk` from the latest GitHub Actions run, copy it to your Android phone and open it (allow "install unknown apps"). It uses test ads, and purchases won't work until the products exist in Play.
+- **In Claude:** the playable demo at https://claude.ai/artifact/Tq2uwc6oigEGydd9g3Ybnq runs the same build. Ads and purchases are simulated, and progress is saved in that browser.
 - **In a browser:** `npm install && npm run dev`, then open the printed URL. Ads and purchases are simulated.
