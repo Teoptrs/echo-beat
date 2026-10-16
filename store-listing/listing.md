@@ -12,8 +12,8 @@ Echo Beat is a rhythm puzzle on a hex grid. Swipe anywhere and you step on the n
 
 Grab every note, then reach the exit. But each note turns the route you just walked into an echo, a pink copy of you that replays it on the beat, there and back, forever. Touch one and the take is ruined. The level is built from your own past moves, so the real puzzle is planning a route your future self can dodge.
 
-★ 24 hand-made tracks on three sides of a record: Echoes, Machinery and Noise
-★ Plates your echoes can hold down for you, spikes that rise on the fourth beat, floors that crumble, metronomes, portals and erasers
+★ 52 hand-made tracks on five sides of a record: Echoes, Machinery, Noise, Shadows and Locks
+★ Plates your echoes can hold down for you, spikes that rise on the fourth beat, floors that crumble, metronomes, portals, erasers, keys and doors, and a shadow that hunts you every second beat
 ★ A soundtrack that builds as you play: every note you collect adds an instrument
 ★ Stuck? Every track has a hint that shows the route, beat by beat
 ★ Printed like a risograph poster, with eight ink sets to reprint the whole game in

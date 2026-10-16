@@ -8,15 +8,25 @@ Grab every note, then reach the exit. The catch: each note turns the route you w
 
 **One-line pitch:** *Move on the beat. Every route you walk comes back to haunt you.*
 
-## Structure: a record with three sides
+## Structure: a record with five sides
 
-24 tracks, unlocked in order. Each side adds machinery and has its own groove.
+52 tracks, unlocked in order. Each side adds machinery and has its own groove.
 
 | Side | Groove | New elements |
 | --- | --- | --- |
-| A: Echoes (A1–A8) | dub steppers, 92–108 bpm | swiping, notes and echoes, waiting, planning routes |
-| B: Machinery (B1–B8) | four-on-the-floor, 100–116 bpm | plates and gates (an echo can hold the door), spikes on a 4-beat cycle, cracked floor |
-| C: Noise (C1–C8) | broken beat, 104–120 bpm | metronomes that patrol a line, portals, erasers that delete your oldest echo |
+| A: Echoes (12 tracks) | dub steppers, 92–108 bpm | swiping, notes and echoes, waiting, planning routes |
+| B: Machinery (12) | four-on-the-floor, 100–116 bpm | plates and gates (an echo can hold the door), spikes on a 4-beat cycle, cracked floor |
+| C: Noise (12) | broken beat, 104–120 bpm | metronomes that patrol a line, portals, erasers that delete your oldest echo |
+| D: Shadows (8) | half-time, sub bass, 100–116 bpm | your shadow: every second beat it steps toward you, but only if that gets it closer, so walls hold it. It falls to echoes, metronomes, raised spikes and crumbling floor, and it can hold a plate down |
+| E: Locks (8) | woodblock and tumbler clicks, 108–124 bpm | keys and doors: a key opens every door of its shape for good; doors also stop shadows and metronomes |
+
+Level ids never change, because saved progress is keyed by them. A level added later takes the next free id on its side (A9, A10, ...) and is slotted in where it fits; the game shows each level's place on its side instead (`LABEL` in levels.js).
+
+### Level design rules
+
+Open fields let you walk around your echoes, so they stop mattering. `node tools/inspect.mjs <id>` reports, next to par, the shortest win with echoes made harmless ("free"); when it equals par, the echoes never forced a detour or a wait. 21 of the first 24 levels were like that, so the 12 levels added to sides A to C use 1-wide passages, dead ends and mazes where you must walk back along your own route: a note at the end of a corridor (wait at the start so your echo starts late), a plate your echo keeps pressing because you waited on it, an echo that walls off the way until an eraser removes it, note orders where the wrong order costs ten beats. For shadow levels it also reports how many beats the shadow costs ("noShadow"), and which events the route depends on (the shadow falling to your echo, a metronome or a crack; keys).
+
+Design maps as pictures with `tools/hexpic.mjs`: in a picture every hex sits next to its real neighbours, which avoids the classic mistake of offset rows (a map row is a zigzag, not a straight line).
 
 Every level is checked by a solver (`npm run solve`), which finds the shortest route it can, sets par to that plus two beats, and stores the route as the level's hint. `npm test` replays every stored route and fails if one stops winning. In play, stepping off the hint route (or missing a beat) holds the board still while the same solver plots a new route from where you are, then a count-in starts it.
 
@@ -26,7 +36,7 @@ Stars: 3 at or under par, 2 within par + 50 %, otherwise 1.
 
 - **A1** has no hazards. An animated finger shows the swipe, and the tip line walks you through it: swipe up, swiping early is fine, the squares at the bottom keep time.
 - **A2** stops the music the moment your first echo appears, points at it, explains it, then resumes with a four-beat count-in.
-- Every new element gets an intro card with a little printed diagram before the first track that uses it (waiting, plates and gates, spikes, cracked floor, metronomes, portals, erasers).
+- Every new element gets an intro card with a little printed diagram before the first track that uses it (waiting, plates and gates, spikes, cracked floor, metronomes, portals, erasers, your shadow, keys and doors).
 - The step sequencer at the bottom shows the beat, fills up as the next beat approaches, and records your last eight moves.
 
 ## Music
@@ -68,6 +78,7 @@ Generic AI-built apps share a recognisable look: Inter or Roboto, dark mode with
 
 ## Ideas for later
 
-- Side D as a free update (more content is the best retention lever for a level-based game).
+- More sides as free updates (more content is the best retention lever for a level-based game).
 - A daily remix: a generated level with a shared leaderboard on Google Play Games.
-- A level editor with share codes.
+- A level editor with share codes. A level is small (a 7×9 map plus a few metronomes), so it fits in a short text code that players paste to each other; that needs no server. A server only becomes necessary for browsing, rating or featuring other players' levels.
+- New elements: one-way tiles, conveyors that push everyone a step on the beat, ice you slide across until something stops you, tempo changes mid-track, a mirror echo that walks your route reflected, fuse tiles that blow up a few beats after you leave them, a pickup that freezes your echoes for a bar.

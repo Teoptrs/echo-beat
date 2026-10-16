@@ -251,6 +251,44 @@ const STYLES = {
       if (L >= 4 && s % 2 === 1) tone(musicIn, { type: 'square', f: midi(81 + key + PENTA[(s * 7 + bar * 3) % 6]), t, dur: 0.05, peak: 0.022, send: 0.15 });
     },
   },
+  // Side D: shadows. Half-time feel over a steady pulse: sub bass, a low tom on the
+  // off-beats, a two-note minor motif creeping through the tape echo.
+  shadow: {
+    prog: [[0, 1], [-4, 0], [1, 0], [-2, 1]],
+    motif: [[7, 8], [3, 2]],
+    play(s, bar, t, L, key, spb, alt) {
+      const [deg, minor] = this.prog[bar % 4];
+      const r = 45 + key + deg;
+      if (s === 0 || s === 10) kick(t, s ? 0.7 : 1);
+      if (s === 4 || s === 12) tone(musicIn, { type: 'sine', f: 110 + (s === 12 ? -14 : 0), glide: [70, 0.12], t, dur: 0.18, peak: 0.42 });
+      if (s % 4 === 2) hiss(musicIn, { t, dur: 0.03, peak: 0.07, f: 8400 });
+      if (L >= 1 && (s === 0 || s === 8)) tone(musicIn, { type: 'sine', f: midi(r - 12), t, dur: spb * 1.9, peak: 0.5, attack: 0.02 });
+      if (L >= 2 && s === 8) snare(t, 0.85, 0.3);
+      if (L >= 2 && s % 2 === 1) hiss(musicIn, { t, dur: 0.02, peak: 0.03, f: 9500 });
+      const m = this.motif[alt % 2];
+      if (L >= 3 && (s === 6 || s === 14)) tone(musicIn, { type: 'triangle', f: midi(57 + key + m[s === 6 ? 0 : 1]), t, dur: spb * 0.8, peak: 0.07, send: 0.5 });
+      if (L >= 4 && s % 4 === 0) for (const n of chord(r + 12, minor)) tone(musicIn, { type: 'sawtooth', f: midi(n), t, dur: spb * 0.9, peak: 0.022, cutoff: 900, attack: 0.05, send: 0.2 });
+    },
+  },
+  // Side E: locks. Clockwork: woodblock ticks, a plucked arpeggio, tumblers clicking on the offbeats.
+  locks: {
+    prog: [[0, 0], [5, 0], [-3, 1], [-5, 0]],
+    play(s, bar, t, L, key, spb, alt) {
+      const [deg, minor] = this.prog[bar % 4];
+      const r = 45 + key + deg;
+      if (s % 4 === 0) kick(t, s % 8 === 0 ? 1 : 0.75);
+      if (s % 4 === 2) tone(musicIn, { type: 'triangle', f: 1760, t, dur: 0.03, peak: 0.14 });
+      if (L >= 1 && s % 4 === 0) tone(musicIn, { type: 'square', f: midi(r - 12 + (s === 8 ? 7 : 0)), t, dur: spb * 0.45, peak: 0.12, cutoff: 700, sweepTo: 250, q: 3 });
+      if (L >= 2 && [3, 7, 11, 15].includes(s)) {
+        tone(musicIn, { type: 'square', f: alt % 2 ? 2350 : 2093, t, dur: 0.018, peak: 0.05, cutoff: 6000 });
+        tone(musicIn, { type: 'square', f: alt % 2 ? 3136 : 2794, t: t + 0.02, dur: 0.015, peak: 0.035, cutoff: 7000 });
+      }
+      if (L >= 2 && (s === 4 || s === 12)) rim(t, 0.25);
+      const c = chord(r + 12, minor);
+      if (L >= 3 && s % 2 === 0) tone(musicIn, { type: 'triangle', f: midi(c[(s / 2) % 3] + (s >= 8 ? 12 : 0)), t, dur: 0.12, peak: 0.06, send: 0.22 });
+      if (L >= 4 && (s === 0 || s === 6 || s === 10)) tone(musicIn, { type: 'square', f: midi(69 + key + PENTA[(s + bar * 2 + alt) % 6]), t, dur: spb * 0.35, peak: 0.035, cutoff: 3200, send: 0.3 });
+    },
+  },
 };
 
 // ---------- the song ----------
@@ -371,6 +409,16 @@ export function sfx(name, arg = 0) {
     case 'win':
       [0, 4, 7, 12, 16, 19].forEach((n, i) => tone(sfxBus, { type: 'triangle', f: midi(root + n + 12), t: t + i * 0.06, dur: 0.4, peak: 0.14, send: 0.35 }));
       hiss(sfxBus, { t: t + 0.3, dur: 0.6, peak: 0.08, f: 9000 });
+      break;
+    case 'key':
+      tone(sfxBus, { type: 'square', f: 1568, t, dur: 0.04, peak: 0.08, cutoff: 5000 });
+      tone(sfxBus, { type: 'square', f: 2093, t: t + 0.05, dur: 0.05, peak: 0.08, cutoff: 5000 });
+      tone(sfxBus, { type: 'square', f: 98, t: t + 0.1, dur: 0.12, peak: 0.16, cutoff: 700 });
+      hiss(sfxBus, { t: t + 0.1, dur: 0.05, peak: 0.12, type: 'bandpass', f: 1200, q: 2 });
+      break;
+    case 'poof':
+      hiss(sfxBus, { t, dur: 0.35, peak: 0.24, type: 'lowpass', f: 2400, sweepTo: 180 });
+      tone(sfxBus, { type: 'sine', f: 220, glide: [55, 0.3], t, dur: 0.35, peak: 0.3 });
       break;
     case 'star':
       tone(sfxBus, { type: 'triangle', f: midi(root + 24 + [0, 4, 7][arg % 3]), t, dur: 0.3, peak: 0.18, send: 0.3 });

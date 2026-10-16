@@ -274,6 +274,12 @@ export class Renderer {
         });
         break;
       }
+      case 'a': case 'b': case 'd':
+        if (!st.keyTaken) this.key(x, y - (st.pulse || 0) * s * 0.05, c.t);
+        break;
+      case 'A': case 'B': case 'D':
+        this.door(x, y, c.t.toLowerCase(), st.doorOpen);
+        break;
       case 'x':
         if (st.erased) {
           this.inked('echo', (col) => {
@@ -289,6 +295,95 @@ export class Renderer {
         } else this.eraser(x, y, s);
         break;
     }
+  }
+
+  // The shape that pairs a key with its doors: a circle, a triangle or a square.
+  keyShape(x, y, r, kind) {
+    const { ctx } = this;
+    ctx.beginPath();
+    if (kind === 'a') ctx.arc(x, y, r, 0, TAU);
+    else if (kind === 'b') {
+      ctx.moveTo(x, y - r * 1.1);
+      ctx.lineTo(x + r * 1.05, y + r * 0.75);
+      ctx.lineTo(x - r * 1.05, y + r * 0.75);
+      ctx.closePath();
+    } else ctx.rect(x - r * 0.85, y - r * 0.85, r * 1.7, r * 1.7);
+  }
+
+  // A key lying on the floor: its bow is the shape of the doors it opens.
+  key(x, y, kind) {
+    const { ctx } = this;
+    const s = this.size;
+    const bx = x - s * 0.26, by = y - s * 0.02, br = s * 0.24;
+    const shaft = () => {
+      ctx.beginPath();
+      ctx.moveTo(bx + br * 0.9, by);
+      ctx.lineTo(x + s * 0.5, by);
+      ctx.moveTo(x + s * 0.32, by);
+      ctx.lineTo(x + s * 0.32, by + s * 0.2);
+      ctx.moveTo(x + s * 0.46, by);
+      ctx.lineTo(x + s * 0.46, by + s * 0.15);
+    };
+    this.inked('mech', (col) => {
+      ctx.fillStyle = col;
+      this.keyShape(bx, by, br, kind);
+      ctx.fill();
+      ctx.strokeStyle = col;
+      ctx.lineWidth = Math.max(2.5, s * 0.11);
+      ctx.lineCap = 'butt';
+      shaft();
+      ctx.stroke();
+    });
+    this.inked('line', (col) => {
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1.5;
+      ctx.lineJoin = 'miter';
+      this.keyShape(bx, by, br, kind);
+      ctx.stroke();
+    });
+    this.knockout(() => {
+      this.keyShape(bx, by, br * 0.36, kind);
+      ctx.fill();
+    });
+  }
+
+  // A locked door: a solid block with a keyhole in its key's shape. Open, just its frame.
+  door(x, y, kind, open) {
+    const { ctx } = this;
+    const s = this.size, R = s * 0.93;
+    if (open) {
+      this.inked('mech', (col) => {
+        this.hex(x, y, R * 0.84);
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        this.keyShape(x, y, s * 0.16, kind);
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+      return;
+    }
+    this.inked('mech', (col) => {
+      this.hex(x, y, R * 0.86);
+      ctx.fillStyle = col;
+      ctx.fill();
+    });
+    this.inked('line', (col) => {
+      this.hex(x, y, R * 0.86);
+      ctx.strokeStyle = col;
+      ctx.lineWidth = Math.max(2, s * 0.08);
+      ctx.stroke();
+    });
+    this.knockout(() => {
+      this.keyShape(x, y - s * 0.04, s * 0.24, kind);
+      ctx.fill();
+    });
+    this.inked('line', (col) => {
+      ctx.fillStyle = col;
+      ctx.fillRect(x - s * 0.05, y + s * 0.18, s * 0.1, s * 0.24);
+    });
   }
 
   spikes(x, y, state, pop) {
@@ -541,6 +636,38 @@ export class Renderer {
     });
   }
 
+  // Your shadow: your shape printed in the dark line ink, eyes on you.
+  // `crouch` (0..1) squashes it on the beat before it steps.
+  shadow(x, y, r, look, crouch = 0) {
+    const { ctx } = this;
+    const sx = 1 + 0.12 * crouch, sy = 1 - 0.16 * crouch;
+    const cy = y + r * 0.16 * crouch;
+    this.inked('line', (col) => {
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.ellipse(x, cy, r * sx, r * sy, 0, 0, TAU);
+      ctx.fill();
+    });
+    const lx = Math.cos(look) * r * 0.1, ly = Math.sin(look) * r * 0.1;
+    const at = [-1, 1].map((s) => [x + s * r * 0.34 + lx, cy - r * 0.12 + ly]);
+    this.knockout(() => {
+      for (const [i, [ex, ey]] of at.entries()) {
+        // narrowed, slanted eyes
+        ctx.beginPath();
+        ctx.ellipse(ex, ey, r * 0.23, r * 0.15, (i ? -1 : 1) * 0.35, 0, TAU);
+        ctx.fill();
+      }
+    });
+    this.inked('danger', (col) => {
+      ctx.fillStyle = col;
+      for (const [ex, ey] of at) {
+        ctx.beginPath();
+        ctx.arc(ex + lx * 0.6, ey + ly * 0.4, r * 0.09, 0, TAU);
+        ctx.fill();
+      }
+    });
+  }
+
   chevron(x, y, a, len, width, color) {
     const { ctx } = this;
     ctx.save();
@@ -587,6 +714,8 @@ export class Renderer {
         collected: sim.collected.has(c.k),
         erased: sim.erased.has(c.k),
         broken: sim.broken.has(c.k),
+        keyTaken: sim.opened.has(c.t),
+        doorOpen: sim.opened.has(c.t.toLowerCase()),
         pulse: v.pulse,
         beat: T,
       });
@@ -684,6 +813,35 @@ export class Renderer {
       const from = this.center(sim.metronomePos(m, T - 1)), to = this.center(sim.metronomePos(m, T));
       this.metronome(lerp(from[0], to[0], p), lerp(from[1], to[1], p), v.beatF);
     }
+
+    // shadows: drawn a beat ahead, from where they stood to where they are going
+    const ticked = T > sim.lastClosed;
+    const [px, py] = this.center(sim.player);
+    sim.shadows.forEach((k, i) => {
+      if (!k && !(ticked && sim.shadowPlan[i])) return;
+      const from = ticked ? k : sim.shadowPrev[i];
+      const to = ticked ? sim.shadowPlan[i] : k;
+      if (!from || !to) return;
+      const a = this.center(from), b = this.center(to);
+      const x = lerp(a[0], b[0], p), y = lerp(a[1], b[1], p);
+      // about to step: a dashed ring on the hex it steps to, and a crouch
+      const next = ticked ? null : sim.shadowPlan[i];
+      let crouch = 0;
+      if (next && next !== k && play.mode === 'play') {
+        const [nx, ny] = this.center(next);
+        this.inked('line', (col) => {
+          ctx.strokeStyle = col;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
+          ctx.arc(nx, ny, s * 0.4, 0, TAU);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        });
+        crouch = clamp01((v.beatF - Math.floor(v.beatF) - 0.45) * 2.2);
+      }
+      this.shadow(x, y - v.pulse * s * 0.03, s * 0.42, Math.atan2(py - y, px - x), crouch);
+    });
 
     this.drawPlayer(play, v);
     this.drawFx(play, v);
@@ -790,6 +948,21 @@ export class Renderer {
           }
           ctx.stroke();
         });
+      } else if (f.type === 'splat') {
+        // a shadow gone: its ink spatters and fades
+        this.inked('line', (col) => {
+          ctx.fillStyle = col;
+          ctx.globalAlpha = 1 - k;
+          for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * TAU + 0.3, d = s * (0.15 + easeOut(k) * (0.45 + (i % 3) * 0.12));
+            ctx.beginPath();
+            ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, s * (0.1 - k * 0.06) * (1 + (i % 2)), 0, TAU);
+            ctx.fill();
+          }
+          ctx.beginPath();
+          ctx.ellipse(x, y + s * 0.1, s * 0.4 * (1 - k * 0.4), s * 0.16 * (1 - k * 0.4), 0, 0, TAU);
+          ctx.fill();
+        });
       } else if (f.type === 'chips') {
         this.inked('line', (col) => {
           ctx.fillStyle = col;
@@ -835,6 +1008,7 @@ export class Renderer {
     const { n, gap, sq, x0, y0 } = this.sequencerRect();
     const cur = Math.floor(v.beatF);
     const phase = v.beatF - cur;
+    const shadowOn = play.sim.shadows.some(Boolean);
     ctx.globalCompositeOperation = ink.blend;
     for (let i = 0; i < n; i++) {
       const x = x0 + i * (sq + gap), y = y0;
@@ -860,6 +1034,15 @@ export class Renderer {
         ctx.strokeStyle = col;
         ctx.lineWidth = i % 4 === 0 ? 3 : 1.6;
         ctx.strokeRect(x, y, sq, sq);
+        // a dark corner on the beats your shadow steps
+        if (shadowOn && play.sim.shadowBeat(isNext ? cur + 1 : b)) {
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          ctx.moveTo(x + sq, y);
+          ctx.lineTo(x + sq * 0.7, y);
+          ctx.lineTo(x + sq, y + sq * 0.3);
+          ctx.fill();
+        }
       });
       const cx = x + sq / 2, cy = y + sq / 2;
       const glyph = (d, col, w = 3) => {
@@ -1057,6 +1240,32 @@ export class Renderer {
       this.ghost(b, y, s * 0.36, { forming: true });
       label(a, 'eraser');
       label(b, 'oldest echo gone');
+    } else if (kind === 'shadow') {
+      const list = xs(4);
+      list.forEach((x) => floor(x));
+      this.shadow(list[0], y, s * 0.38, 0, 0);
+      this.inked('line', (col) => {
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.arc(list[1], y, s * 0.4, 0, TAU);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+      this.body(list[3], y, s * 0.4, 1, 1);
+      this.eyes(list[3], y, s * 0.4, 5, 1);
+      label(list[0], 'your shadow');
+      label(list[1], 'next step');
+      label(list[3], 'you');
+    } else if (kind === 'keys') {
+      const [a, b, c] = xs(3);
+      floor(a, 'a');
+      floor(b, 'A');
+      floor(c, 'A', { doorOpen: true });
+      label(a, 'key');
+      label(b, 'its door');
+      label(c, 'open for good');
     } else if (kind === 'echo') {
       const list = xs(3);
       list.forEach((x) => floor(x));

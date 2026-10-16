@@ -4,7 +4,7 @@ import '@fontsource-variable/archivo/wdth.css';
 import './style.css';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
-import { LEVELS, SIDES, INTROS } from './levels.js';
+import { LEVELS, SIDES, INTROS, LABEL } from './levels.js';
 import SOLUTIONS from './solutions.json';
 import { DIRS, starsFor } from './sim.js';
 import { Play } from './play.js';
@@ -54,7 +54,7 @@ let menuSong = null;
 let dirty = true;
 let ink = inkById(save.ink);
 
-const SIDE_STYLE = { A: 'dub', B: 'machine', C: 'noise' };
+const SIDE_STYLE = { A: 'dub', B: 'machine', C: 'noise', D: 'shadow', E: 'locks' };
 const KEYS = [0, 3, -2, 5, -4, 2, -5, 1];
 
 const levelIndex = (id) => LEVELS.findIndex((l) => l.id === id);
@@ -225,7 +225,7 @@ document.addEventListener('click', (e) => {
 function renderTitle() {
   const i = nextIndex();
   const l = LEVELS[i < 0 ? 0 : i];
-  $('#play-sub').textContent = i < 0 ? 'Every track cleared · pick any' : `${SIDES.find((s) => s.id === l.id[0]).name} · ${l.id} ${l.name}`;
+  $('#play-sub').textContent = i < 0 ? 'Every track cleared · pick any' : `${SIDES.find((s) => s.id === l.id[0]).name} · ${LABEL[l.id]} ${l.name}`;
   const st = dailyStatus();
   $('#daily-btn').hidden = !st.claimable;
   if (st.claimable) $('#daily-amount').textContent = '+' + DAILY_REWARDS[st.day - 1];
@@ -262,14 +262,14 @@ function renderTracks(sideId) {
       const got = save.progress[l.id]?.stars || 0;
       const right = open ? `<span class="stars" aria-label="${got} stars">${[0, 1, 2].map((k) => star(k < got)).join('')}</span>` : '<span class="lock">locked</span>';
       return `<li><button class="track${i === ni ? ' next' : ''}" data-level="${i}" ${open ? '' : 'disabled'}>
-        <span class="no">${l.id.slice(1).padStart(2, '0')}</span>
+        <span class="no">${LABEL[l.id].slice(1).padStart(2, '0')}</span>
         <span class="name"><span>${l.name}</span></span>
         <span class="bpm">${l.bpm} bpm</span>${right}</button></li>`;
     })
     .join('');
   const lastOfSide = levelIndex(tracks[tracks.length - 1].id);
   const nextSide = SIDES[SIDES.indexOf(side) + 1];
-  $('#side-foot').textContent = nextSide && !cleared(lastOfSide) ? `Clear ${tracks[tracks.length - 1].id} to flip to ${nextSide.name}: ${nextSide.subtitle}.` : '';
+  $('#side-foot').textContent = nextSide && !cleared(lastOfSide) ? `Clear ${LABEL[tracks[tracks.length - 1].id]} to flip to ${nextSide.name}: ${nextSide.subtitle}.` : '';
 }
 
 $('#sides').addEventListener('click', (e) => {
@@ -320,7 +320,7 @@ function launch(i, hint, wait = false) {
   if (screen !== 'play') history = ['title', 'tracks'];
   screen = 'play';
   for (const el of $$('[data-screen]')) el.hidden = el.id !== 'play';
-  $('#hud-id').textContent = level.id;
+  $('#hud-id').textContent = LABEL[level.id];
   $('#hud-name').textContent = level.name;
   setTip(firstTip(level, hint));
   updateHud();
@@ -434,6 +434,21 @@ function onEvent(type, ev) {
       audio.sfx('crumble');
       fx('chips', ev.at, { dur: 0.7 });
       break;
+    case 'key':
+      audio.sfx('key');
+      buzz('medium');
+      fx('ring', ev.at, { ink: 'mech', dur: 0.5 });
+      for (const d of ev.doors) fx('ring', d, { ink: 'mech', dur: 0.7, r0: 0.4, r1: 1.2 });
+      break;
+    case 'shadowGone':
+      audio.sfx('poof');
+      buzz('light');
+      fx('splat', ev.at, { dur: 0.8 });
+      if (!play.hint && !play.saidShadowGone) {
+        play.saidShadowGone = true;
+        setTip({ echo: 'Your echo caught your shadow.', metronome: 'The metronome got your shadow.', spike: 'Your shadow stood on the spikes.', fall: 'Your shadow fell through the floor.' }[ev.reason]);
+      }
+      break;
     case 'gate':
       audio.sfx('gate');
       break;
@@ -483,7 +498,7 @@ function openPause() {
   const l = play.level;
   const canSlow = play.tempo === 1 && rewardedAvailable();
   const panel = openSheet(
-    `<p class="eyebrow">${l.id} · ${l.name}</p><h2>Paused</h2>
+    `<p class="eyebrow">${LABEL[l.id]} · ${l.name}</p><h2>Paused</h2>
     <div class="actions">
       <button class="btn primary big" data-act="resume"><small>Four-beat count-in</small><span>Resume</span></button>
       ${canSlow ? `<button class="btn inline" data-act="slow">${ICON.ad}<span>Slow down to ${Math.round(l.bpm * ADS.slowTempo)} bpm</span></button>` : ''}
@@ -523,7 +538,7 @@ function resumeGame() {
 
 function showDeath(p) {
   if (play !== p || screen !== 'play' || p.mode !== 'dead') return;
-  const reason = { echo: 'You walked into your own echo.', metronome: 'A metronome flattened you.', spike: 'You were standing on the spikes when they came up.' }[p.death.reason];
+  const reason = { echo: 'You walked into your own echo.', metronome: 'A metronome flattened you.', spike: 'You were standing on the spikes when they came up.', shadow: 'Your shadow caught you.' }[p.death.reason];
   const canRewind = p.canContinue && rewardedAvailable();
   const canSlow = p.tempo === 1 && rewardedAvailable();
   const panel = openSheet(
@@ -579,13 +594,13 @@ function showResults(p, beats) {
   const stampText = stars === 3 ? 'Perfect' : 'Clear';
   const parLine = stars === 3 ? `${beats} beats, par ${par}.` : `${beats} beats. Clear it in ${par} or fewer for three stars.`;
   const panel = openSheet(
-    `<p class="eyebrow">${level.id} · ${level.name}</p>
+    `<p class="eyebrow">${LABEL[level.id]} · ${level.name}</p>
     <span class="stamp">${stampText}</span>
     <div class="stars-big">${[0, 1, 2].map((k) => star(k < stars)).join('')}</div>
     <p class="lead">${parLine}</p>
     ${coins ? `<p class="earned">${ICON.coin}<span>+${coins}</span></p>` : ''}
     <div class="actions">
-      <button class="btn primary big" data-act="next"><small>${last ? 'That was the last track' : flips ? `Flip to ${SIDES.find((s) => s.id === nextLevel.id[0]).name}` : `${nextLevel.id} ${nextLevel.name}`}</small><span>${last ? 'Tracklist' : 'Next track'}</span></button>
+      <button class="btn primary big" data-act="next"><small>${last ? 'That was the last track' : flips ? `Flip to ${SIDES.find((s) => s.id === nextLevel.id[0]).name}` : `${LABEL[nextLevel.id]} ${nextLevel.name}`}</small><span>${last ? 'Tracklist' : 'Next track'}</span></button>
       <div class="row"><button class="btn" data-act="replay">Replay</button><button class="btn" data-act="tracks">Tracklist</button></div>
     </div>`,
     { onBack: () => leave('tracks') },
@@ -674,7 +689,7 @@ function requestHint(goBack) {
   const mins = Math.ceil(wait / 60000);
   const canAd = rewardedAvailable();
   const panel = openSheet(
-    `<p class="eyebrow">${level.id} · ${level.name}</p><h2>Show the route?</h2>
+    `<p class="eyebrow">${LABEL[level.id]} · ${level.name}</p><h2>Show the route?</h2>
     <p>A yellow hex marks where to stand after every beat. Step off it and the hint plots a new route from where you are. The track restarts, and the hint stays unlocked for it.</p>
     <p class="help">${wait ? `You get one free hint an hour. The next one is ready in ${mins} ${mins === 1 ? 'minute' : 'minutes'}.` : 'You get one free hint an hour, and it is ready now.'}</p>
     <div class="actions">
