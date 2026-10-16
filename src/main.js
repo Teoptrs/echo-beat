@@ -10,10 +10,11 @@ import { DIRS, starsFor } from './sim.js';
 import { Play } from './play.js';
 import { Renderer } from './render.js';
 import * as audio from './music.js';
-import { INKS, inkById, paperDataUrl } from './inks.js';
-import { save, persist, addCoins, dailyStatus, claimDaily, DAILY_REWARDS, today } from './save.js';
+import { INKS, PREMIUM_INKS, inkById, paperDataUrl } from './inks.js';
+import { save, persist, resetSave, addCoins, dailyStatus, claimDaily, DAILY_REWARDS, today } from './save.js';
 import { ADS, REWARDS, PRIVACY_POLICY_URL } from './config.js';
-import { initAds, showRewarded, maybeInterstitial, rewardedAvailable, showPrivacyOptions, privacyOptionsRequired } from './ads.js';
+import { initAds, showRewarded, rewardFailure, maybeInterstitial, rewardedAvailable, showPrivacyOptions, privacyOptionsRequired } from './ads.js';
+import { solveFrom, cloneSim } from './solver.js';
 import { initIAP, buy, restore, priceOf, owns } from './iap.js';
 
 const native = Capacitor.isNativePlatform();
@@ -354,9 +355,13 @@ function updateHud() {
 
 // Slow tempo power-up: watch a rewarded ad, and the track plays at 75% speed
 // until you leave it. Never sold for coins or money.
+function noReward() {
+  toast(rewardFailure() === 'closed' ? 'The ad was closed before the end, so no reward this time.' : 'No ad is available right now. Try again in a minute.');
+}
+
 async function unlockSlowTempo() {
   if (!(await showRewarded())) {
-    toast('No reward this time. The ad was closed early.');
+    noReward();
     return false;
   }
   slowFor = LEVELS[levelIdx].id;
@@ -440,8 +445,9 @@ function onEvent(type, ev) {
         showEchoCallout();
       }
       break;
-    case 'hintLost':
-      setTip('Off the route, so the hint stopped. Restart to follow it again.');
+    case 'offRoute':
+      play.pause();
+      rerouteHint(play);
       break;
     case 'paused':
       audio.stopSong(0.08);
@@ -482,7 +488,7 @@ function openPause() {
       <button class="btn primary big" data-act="resume"><small>Four-beat count-in</small><span>Resume</span></button>
       ${canSlow ? `<button class="btn inline" data-act="slow">${ICON.ad}<span>Slow down to ${Math.round(l.bpm * ADS.slowTempo)} bpm</span></button>` : ''}
       <div class="row"><button class="btn" data-act="restart">Restart</button>
-      <button class="btn inline" data-act="hint">${ICON.route}<span>${play.hint ? 'Hint is on' : 'Hint'}</span></button></div>
+      <button class="btn inline" data-act="hint">${ICON.route}<span>${hintLabel()}</span></button></div>
       <div class="row"><button class="btn" data-act="tracks">Tracklist</button>
       <button class="btn" data-act="music">${save.music > 0 ? 'Music off' : 'Music on'}</button></div>
     </div>`,
@@ -527,24 +533,29 @@ function showDeath(p) {
       <button class="btn primary big" data-act="retry"><small>From the top</small><span>Retry</span></button>
       ${canRewind ? `<button class="btn inline" data-act="rewind">${ICON.ad}<span>Rewind to your last note</span></button>` : ''}
       ${canSlow ? `<button class="btn inline" data-act="slow">${ICON.ad}<span>Retry slower, at ${Math.round(p.level.bpm * ADS.slowTempo)} bpm</span></button>` : ''}
-      <div class="row"><button class="btn inline" data-act="hint">${ICON.route}<span>Hint</span></button>
+      <div class="row"><button class="btn inline" data-act="hint">${ICON.route}<span>${hintLabel()}</span></button>
       <button class="btn" data-act="tracks">Tracklist</button></div>
     </div>`,
     { cls: 'death', onBack: quitToTracks },
   );
   panel.onclick = async (e) => {
     const act = e.target.closest('[data-act]')?.dataset.act;
-    if (act === 'retry') startLevel(levelIdx, { hint: !!p.hint && !p.hint.lost });
+    if (act === 'retry') startLevel(levelIdx, { hint: !!p.hint });
     if (act === 'tracks') quitToTracks();
     if (act === 'hint') requestHint(() => showDeath(p));
-    if (act === 'slow' && (await unlockSlowTempo()) && play === p) startLevel(levelIdx, { hint: !!p.hint && !p.hint.lost });
+    if (act === 'slow' && (await unlockSlowTempo()) && play === p) startLevel(levelIdx, { hint: !!p.hint });
     if (act === 'rewind') {
       const ok = await showRewarded();
-      if (!ok || play !== p) return toast('No reward this time. The ad was closed early.');
+      if (!ok || play !== p) return noReward();
       closeSheet();
       renderer.misprint = 0;
-      p.continueFromCheckpoint();
+      p.continueFromCheckpoint({ start: !p.hint });
       updateHud();
+      // the hint plots a fresh route from the rewound moment
+      if (p.hint) {
+        p.hint.plotting = true;
+        rerouteHint(p);
+      }
     }
   };
 }
@@ -577,19 +588,22 @@ function showResults(p, beats) {
       <button class="btn primary big" data-act="next"><small>${last ? 'That was the last track' : flips ? `Flip to ${SIDES.find((s) => s.id === nextLevel.id[0]).name}` : `${nextLevel.id} ${nextLevel.name}`}</small><span>${last ? 'Tracklist' : 'Next track'}</span></button>
       <div class="row"><button class="btn" data-act="replay">Replay</button><button class="btn" data-act="tracks">Tracklist</button></div>
     </div>`,
-    { onBack: quitToTracks },
+    { onBack: () => leave('tracks') },
   );
   audio.sfx('stamp');
   for (let k = 0; k < stars; k++) setTimeout(() => audio.sfx('star', k), 160 + k * 140);
   if (coins) setTimeout(() => audio.sfx('coin'), 600);
-  panel.onclick = async (e) => {
-    const act = e.target.closest('[data-act]')?.dataset.act;
-    if (!act) return;
+  // every way out of the results (buttons or the back button) counts toward the next interstitial
+  const leave = async (act) => {
     closeSheet();
     await maybeInterstitial(level.id);
     if (act === 'next' && !last) startLevel(levelIdx + 1);
     else if (act === 'replay') startLevel(levelIdx);
     else quitToTracks();
+  };
+  panel.onclick = (e) => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act) leave(act);
   };
 }
 
@@ -641,17 +655,31 @@ function showEchoCallout() {
 
 // ---------- hints ----------
 
+// One free hint an hour; any extra one costs a rewarded ad.
+function freeHintIn() {
+  return Math.max(0, save.freeHintAt + ADS.freeHintEveryMs - Date.now());
+}
+
+function hintLabel() {
+  if (play?.hint && !play.hint.lost) return 'Hint is on';
+  if (!save.hints.includes(LEVELS[levelIdx].id) && freeHintIn() === 0) return 'Free hint';
+  return 'Hint';
+}
+
 function requestHint(goBack) {
   const level = LEVELS[levelIdx];
   if (play?.hint && !play.hint.lost) return goBack();
   if (save.hints.includes(level.id)) return startLevel(levelIdx, { hint: true });
-  const cost = ADS.hintCost;
+  const wait = freeHintIn();
+  const mins = Math.ceil(wait / 60000);
+  const canAd = rewardedAvailable();
   const panel = openSheet(
     `<p class="eyebrow">${level.id} · ${level.name}</p><h2>Show the route?</h2>
-    <p>A yellow hex marks where to stand after every beat. Follow it and you clear the track. The track restarts, and the hint stays unlocked for it.</p>
+    <p>A yellow hex marks where to stand after every beat. Step off it and the hint plots a new route from where you are. The track restarts, and the hint stays unlocked for it.</p>
+    <p class="help">${wait ? `You get one free hint an hour. The next one is ready in ${mins} ${mins === 1 ? 'minute' : 'minutes'}.` : 'You get one free hint an hour, and it is ready now.'}</p>
     <div class="actions">
-      <button class="btn primary inline" data-act="coins" ${save.coins < cost ? 'disabled' : ''}>${ICON.coin}<span>Use ${cost} coins${save.coins < cost ? ` (you have ${save.coins})` : ''}</span></button>
-      ${rewardedAvailable() ? `<button class="btn inline" data-act="ad">${ICON.ad}<span>Watch an ad instead</span></button>` : ''}
+      ${wait ? '' : `<button class="btn primary inline" data-act="free">${ICON.route}<span>Use your free hint</span></button>`}
+      ${canAd ? `<button class="btn${wait ? ' primary' : ''} inline" data-act="ad">${ICON.ad}<span>${wait ? 'Watch an ad for a hint' : 'Watch an ad, keep the free one'}</span></button>` : ''}
       <button class="btn" data-act="cancel">Not now</button>
     </div>`,
     { onBack: goBack },
@@ -659,15 +687,62 @@ function requestHint(goBack) {
   panel.onclick = async (e) => {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'cancel') goBack();
-    if (act === 'coins' && save.coins >= cost) {
-      addCoins(-cost);
+    if (act === 'free' && freeHintIn() === 0) {
+      save.freeHintAt = Date.now();
       unlockHint(level.id);
     }
     if (act === 'ad') {
       if (await showRewarded()) unlockHint(level.id);
-      else toast('No reward this time. The ad was closed early.');
+      else noReward();
     }
   };
+}
+
+// Off the hint route: the board holds still while a new route is plotted from
+// here, then a count-in starts it. In a worker when possible, so drawing goes on.
+let hintWorker = null;
+let hintJob = 0;
+
+function plotRoute(p) {
+  const job = { levelId: p.level.id, snap: p.sim.snapshot(), budgetMs: 1200, limitMs: 6000 };
+  const inline = () => solveFrom(cloneSim(p.sim), job);
+  if (hintWorker === null) {
+    try {
+      hintWorker = new Worker(new URL('./hint-worker.js', import.meta.url), { type: 'module' });
+    } catch {
+      hintWorker = false;
+    }
+  }
+  if (!hintWorker) return Promise.resolve(inline());
+  const id = ++hintJob;
+  return new Promise((resolve) => {
+    const done = (route) => {
+      hintWorker?.removeEventListener('message', onMessage);
+      hintWorker?.removeEventListener('error', onError);
+      resolve(route);
+    };
+    const onMessage = (e) => e.data.id === id && done(e.data.route);
+    const onError = () => {
+      hintWorker.terminate();
+      hintWorker = false;
+      done(inline());
+    };
+    hintWorker.addEventListener('message', onMessage);
+    hintWorker.addEventListener('error', onError);
+    hintWorker.postMessage({ id, ...job });
+  });
+}
+
+async function rerouteHint(p) {
+  setTip('Off the route. Plotting a new one from here.');
+  const started = performance.now();
+  const route = await plotRoute(p);
+  if (play !== p || p.mode !== 'paused') return;
+  p.setHintRoute(route);
+  await new Promise((r) => setTimeout(r, Math.max(0, 600 - (performance.now() - started))));
+  if (play !== p || p.mode !== 'paused') return;
+  setTip(route ? 'New route from here. Follow the yellow hex after the count-in.' : 'No way through from here. Restart to follow the hint again.');
+  p.resume();
 }
 
 function unlockHint(id) {
@@ -696,7 +771,7 @@ function showDaily() {
     if (!act) return;
     let mult = 1;
     if (act === 'double') {
-      if (!(await showRewarded())) return toast('No reward this time. The ad was closed early.');
+      if (!(await showRewarded())) return noReward();
       mult = 2;
     }
     const got = claimDaily(mult);
@@ -742,7 +817,7 @@ function renderShop() {
     <h3 class="section-label">Support the game</h3>
     ${product('premium_inks', 'Premium inks', 'Night Print, Kraft and Gold Foil, yours for good.')}
     ${product('remove_ads', 'Remove ads', 'No more ads between tracks. The optional reward ads stay, for when you want them.')}
-    ${product('coins_500', '500 coins', 'Twelve hints, or an ink set.')}
+    ${product('coins_500', '500 coins', 'Enough for the Teal or Grape ink.')}
     ${product('coins_2000', '2,000 coins', 'Four times the coins.')}
     <h3 class="section-label">Free coins</h3>
     <div class="item no-swatch"><div><h4>Watch an ad, get ${ADS.freeCoinsPerAd} coins</h4><p>${left > 0 ? `${left} left today` : 'Back tomorrow'}</p></div>
@@ -769,7 +844,7 @@ $('#shop-body').addEventListener('click', async (e) => {
     toast(`${i.name} unlocked`);
   } else if (b.dataset.adink) {
     const i = inkById(b.dataset.adink);
-    if (!(await showRewarded())) return toast('No reward this time. The ad was closed early.');
+    if (!(await showRewarded())) return noReward();
     save.adProgress[i.id] = (save.adProgress[i.id] || 0) + 1;
     if (save.adProgress[i.id] >= i.unlock.ads) {
       save.owned.push(i.id);
@@ -782,7 +857,7 @@ $('#shop-body').addEventListener('click', async (e) => {
     const err = await buy(b.dataset.buy);
     if (err) toast(err);
   } else if ('free' in b.dataset) {
-    if (!(await showRewarded())) return toast('No reward this time. The ad was closed early.');
+    if (!(await showRewarded())) return noReward();
     const fc = save.freeCoins.day === today() ? save.freeCoins.count : 0;
     save.freeCoins = { day: today(), count: fc + 1 };
     addCoins(ADS.freeCoinsPerAd);
@@ -839,6 +914,30 @@ $('#restore-btn').addEventListener('click', async () => {
   toast(native ? 'Purchases restored' : 'Nothing to restore in the browser');
 });
 $('#privacy-options').addEventListener('click', () => showPrivacyOptions());
+
+// Wipes progress, coins, inks, hints and settings. Purchases are kept (Play
+// would restore them anyway), then the app restarts on a fresh save.
+$('#reset-data').addEventListener('click', () => {
+  const panel = openSheet(
+    `<p class="eyebrow">Your data</p><h2>Erase everything?</h2>
+    <p>Your progress, stars, coins, inks, hints and settings will be deleted, and the game starts again from A1. This can't be undone. Remove Ads and Premium Inks stay.</p>
+    <div class="actions">
+      <button class="btn primary" data-act="erase">Erase and start over</button>
+      <button class="btn" data-act="cancel">Keep my data</button>
+    </div>`,
+  );
+  panel.onclick = (e) => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'cancel') closeSheet();
+    if (act !== 'erase') return;
+    const kept = { adsRemoved: save.adsRemoved, premiumInks: save.premiumInks, grantedTx: save.grantedTx };
+    resetSave();
+    Object.assign(save, kept);
+    if (save.premiumInks) save.owned.push(...PREMIUM_INKS);
+    persist();
+    location.reload();
+  };
+});
 
 // Tap along with 16 clicks; the average lateness of the taps becomes the offset.
 function calibrate() {

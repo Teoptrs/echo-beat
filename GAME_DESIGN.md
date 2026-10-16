@@ -18,7 +18,7 @@ Grab every note, then reach the exit. The catch: each note turns the route you w
 | B: Machinery (B1–B8) | four-on-the-floor, 100–116 bpm | plates and gates (an echo can hold the door), spikes on a 4-beat cycle, cracked floor |
 | C: Noise (C1–C8) | broken beat, 104–120 bpm | metronomes that patrol a line, portals, erasers that delete your oldest echo |
 
-Every level is checked by a solver (`npm run solve`), which finds the shortest route it can, sets par to that plus two beats, and stores the route as the level's hint. `npm test` replays every stored route and fails if one stops winning.
+Every level is checked by a solver (`npm run solve`), which finds the shortest route it can, sets par to that plus two beats, and stores the route as the level's hint. `npm test` replays every stored route and fails if one stops winning. In play, stepping off the hint route (or missing a beat) holds the board still while the same solver plots a new route from where you are, then a count-in starts it.
 
 Stars: 3 at or under par, 2 within par + 50 %, otherwise 1.
 
@@ -47,7 +47,7 @@ Generic AI-built apps share a recognisable look: Inter or Roboto, dark mode with
 
 **Rewarded ads (always optional):**
 - Rewind to your last note after a death (once per note checkpoint).
-- Unlock a track's hint instead of paying 40 coins.
+- An extra hint. One hint is free every hour; any more cost an ad.
 - Double the daily reward.
 - 25 free coins, five times a day.
 - Unlock the Newsprint ink with three ads.
@@ -64,7 +64,7 @@ Generic AI-built apps share a recognisable look: Inter or Roboto, dark mode with
 | `coins_500` | consumable | €0.99 | 500 coins |
 | `coins_2000` | consumable | €2.99 | 2,000 coins |
 
-**Coins:** 10 for a first clear plus 5 per new star (a perfect first clear pays 25), a 7-day daily streak (20 → 200), and the free-coin ads. Spent on hints (40) and inks (250, 400, 600).
+**Coins:** 10 for a first clear plus 5 per new star (a perfect first clear pays 25), a 7-day daily streak (20 → 200), and the free-coin ads. Spent on inks (250, 400, 600).
 
 ## Ideas for later
 
