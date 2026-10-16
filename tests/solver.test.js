@@ -39,7 +39,11 @@ test('after a missed beat, the hint finds a new winning route', () => {
       if (!s) continue;
       tried++;
       const acts = solveFrom(s, { budgetMs: 1200, limitMs: 6000 });
-      assert.ok(acts, `${level.id}: no route after missing beat ${skip}`);
+      if (!acts) {
+        // a missed beat can doom a run (a shadow gains a step on you); then "no route" is right
+        assert.equal(solveFrom(s), null, `${level.id}: gave up after missing beat ${skip}, but a route exists`);
+        continue;
+      }
       assert.ok(wins(s, acts), `${level.id}: re-plotted route doesn't win`);
     }
   }

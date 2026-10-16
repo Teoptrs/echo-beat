@@ -130,6 +130,92 @@ test('metronomes patrol back and forth and kill on contact', () => {
   assert.equal(result.reason, 'metronome');
 });
 
+test('your shadow steps toward you on every second beat', () => {
+  const s = fresh(['@', '.', '.', '.', '.', 'S']);
+  const at = [];
+  for (let i = 0; i < 4; i++) {
+    step(s, STAY);
+    at.push(s.shadows[0]);
+  }
+  assert.deepEqual(at, [key(0, 0), key(0, 1), key(0, 1), key(0, 2)]);
+});
+
+test('the shadow is drawn a beat ahead: its plan is where it will be', () => {
+  const s = fresh(['@', '.', '.', '.', '.', 'S']);
+  step(s, STAY);
+  const plan = s.shadowPlan[0];
+  step(s, N);
+  assert.equal(s.shadows[0], plan);
+});
+
+test('walls stop the shadow, it only moves when it gets closer', () => {
+  const s = fresh(['@', '#', '.', 'S']);
+  for (let i = 0; i < 4; i++) step(s, STAY);
+  assert.equal(s.shadows[0], key(0, 0));
+});
+
+test('the shadow catches you', () => {
+  const s = fresh(['@', '.', 'S']);
+  const results = [0, 1, 2, 3].map(() => step(s, STAY).type);
+  assert.deepEqual(results, ['ok', 'ok', 'ok', 'dead']);
+  assert.equal(s.status, 'dead');
+});
+
+test('swapping places with the shadow kills you too', () => {
+  const s = fresh(['@', '.', 'S']);
+  step(s, N); // you to row 1, next to it
+  assert.equal(step(s, N).reason, 'shadow'); // it steps down as you step up
+});
+
+test('an echo wipes out the shadow', () => {
+  const s = fresh(['@', '.', '.', '.', 'S']);
+  s.echoes.push({ path: [key(0, 1)], born: 0, id: 99 });
+  step(s, STAY);
+  const r = step(s, STAY);
+  assert.equal(r.type, 'ok');
+  assert.equal(r.events[0].type, 'shadowGone');
+  assert.equal(r.events[0].reason, 'echo');
+  assert.equal(s.shadows[0], null);
+});
+
+test('the shadow falls through cracked floor you just left', () => {
+  const s = fresh(['@', '.', 'c', '.', 'S']);
+  step(s, N);
+  step(s, N); // onto the crack; the shadow comes next to you
+  step(s, STAY);
+  const r = step(s, S); // you step off as it steps on
+  assert.equal(r.type, 'ok');
+  assert.deepEqual(r.events.map((e) => e.type), ['crumble', 'shadowGone']);
+  assert.equal(r.events[1].reason, 'fall');
+});
+
+test('a shadow on a plate holds the gate open', () => {
+  const s = fresh(['G', '.', 'S', 'p', '@']);
+  step(s, STAY);
+  step(s, STAY);
+  assert.equal(s.shadows[0], key(0, 3));
+  assert.equal(s.gatesOpen, true);
+});
+
+test('a key opens every door with its letter, for good', () => {
+  const s = fresh(['E', 'A', 'a', 'S', 'A']);
+  assert.equal(s.walkable(key(0, 1)), false);
+  const r = s.move(COUNT_IN, N);
+  assert.equal(r.events[0].type, 'key');
+  assert.equal(r.events[0].doors.length, 2);
+  s.close(COUNT_IN);
+  assert.equal(s.walkable(key(0, 1)), true);
+  assert.equal(s.walkable(key(0, 4)), true);
+  assert.equal(step(s, N).type, 'ok');
+  assert.equal(step(s, N).type, 'won');
+});
+
+test('a closed door stops the shadow', () => {
+  const s = fresh(['@', 'B', '.', 'S', 'b']);
+  for (let i = 0; i < 4; i++) step(s, STAY);
+  assert.equal(s.shadows[0], key(0, 0));
+});
+
 test('snapshots restore the exact board', () => {
   const s = fresh(['E', 'o', '.', 'S']);
   step(s, N);
@@ -139,6 +225,19 @@ test('snapshots restore the exact board', () => {
   s.restore(snap);
   assert.equal(s.player, key(0, 1));
   assert.equal(s.echoes.length, 1);
+  assert.equal(s.lastClosed, COUNT_IN + 1);
+});
+
+test('snapshots keep shadows and keys', () => {
+  const s = fresh(['@', '.', '.', '.', 'A', 'a', 'S']);
+  step(s, N);
+  step(s, STAY);
+  const snap = s.snapshot();
+  step(s, STAY);
+  step(s, STAY);
+  s.restore(snap);
+  assert.equal(s.shadows[0], key(0, 1));
+  assert.equal(s.opened.has('a'), true);
   assert.equal(s.lastClosed, COUNT_IN + 1);
 });
 
