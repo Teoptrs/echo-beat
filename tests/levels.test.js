@@ -11,7 +11,7 @@ test('level ids are unique and grouped by side', () => {
   const ids = LEVELS.map((l) => l.id);
   assert.equal(new Set(ids).size, ids.length);
   for (const l of LEVELS) assert.ok(SIDES.some((s) => s.id === l.id[0]), l.id);
-  assert.equal(LEVELS.length, 44);
+  assert.equal(LEVELS.length, 52);
 });
 
 test('every intro a level asks for exists', () => {
