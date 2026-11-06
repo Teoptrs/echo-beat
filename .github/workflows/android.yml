@@ -56,8 +56,11 @@ jobs:
         with:
           name: echo-beat-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
+          # build files are rebuilt on every push, so keep them a week instead of GitHub's default 90 days
+          retention-days: 7
 
       - uses: actions/upload-artifact@v4
         with:
           name: echo-beat-release-aab
           path: android/app/build/outputs/bundle/release/*.aab
+          retention-days: 7
